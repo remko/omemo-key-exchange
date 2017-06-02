@@ -13,7 +13,7 @@ void kdf(unsigned char* okm, unsigned char* km) {
   int err;
 
   memset(salt, 0, 32);
-  err = crypto_auth_hmacsha256(prk, km, 32*5, salt);
+  err = crypto_auth_hmacsha256(prk, km, 32*3, salt);
   assert(err == 0);
 
   unsigned char i1[11+1], t1[32];
@@ -61,21 +61,12 @@ int main(int argc, char* argv[]) {
   //  DH Key exchange
   //////////////////////////////////////////////////////////////////////
 
-  unsigned char sodiumPrivateCurveIdentityKey[32], signalPublicCurveIdentityKey[32];
-  err = crypto_sign_ed25519_sk_to_curve25519(sodiumPrivateCurveIdentityKey, sodiumPrivateIdentityKey);
+  unsigned char km[32*3];
+  err = crypto_scalarmult(km, sodiumPrivateSignedPreKey, signalPublicOTPreKey);
   assert(err == 0);
-  err = crypto_sign_ed25519_pk_to_curve25519(signalPublicCurveIdentityKey, signalPublicIdentityKey);
+  err = crypto_scalarmult(km + 32, sodiumPrivateEphemeralKey, signalPublicSignedPreKey);
   assert(err == 0);
-
-  unsigned char km[32*5];
-  memset(km, 0xFF, 32);
-  err = crypto_scalarmult(km + 32, sodiumPrivateCurveIdentityKey, signalPublicSignedPreKey);
-  assert(err == 0);
-  err = crypto_scalarmult(km + 32 + 32, sodiumPrivateEphemeralKey, signalPublicCurveIdentityKey);
-  assert(err == 0);
-  err = crypto_scalarmult(km + 32 + 64, sodiumPrivateEphemeralKey, signalPublicSignedPreKey);
-  assert(err == 0);
-  err = crypto_scalarmult(km + 32 + 96, sodiumPrivateEphemeralKey, signalPublicOTPreKey);
+  err = crypto_scalarmult(km + 64, sodiumPrivateEphemeralKey, signalPublicOTPreKey);
   assert(err == 0);
 
   unsigned char sharedKeys[64];

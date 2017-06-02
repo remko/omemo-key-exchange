@@ -24,23 +24,6 @@ void convert_curve_to_ed_pk(unsigned char* A, unsigned char* k) {
   A[31] &= 0x7F;
 }
 
-// From LibSodium
-int crypto_sign_ed25519_pk_to_curve25519(unsigned char * curve25519_pk, const unsigned char *ed25519_pk) {
-  ge_p3 A;
-  fe x;
-  fe one_minus_y;
-  if (ge_frombytes_negate_vartime(&A, ed25519_pk) != 0) { return -1; }
-  fe_1(one_minus_y);
-  fe_sub(one_minus_y, one_minus_y, A.Y);
-  fe_invert(one_minus_y, one_minus_y);
-  fe_1(x);
-  fe_add(x, x, A.Y);
-  fe_mul(x, x, one_minus_y);
-  fe_tobytes(curve25519_pk, x);
-  return 0;
-}
-
-
 void load_public_key(ec_public_key **public_key, const unsigned char* key) {
   unsigned char tmp[33];
   tmp[0] = 0x5;
@@ -121,23 +104,18 @@ int main(int argc, char* argv[]) {
 
 
   //////////////////////////////////////////////////////////////////////
-  // (Modified) X3DH Key exchange.
+  // Olm 3DH Key exchange.
   //
   // ratchet.c:ratcheting_session_alice_initialize() and 
   // ratchet.c:ratcheting_session_bob_initialize() 
-  // need to be changed to convert the peer public identity key (which is 
-  // Ed25519) to Curve25519 using crypto_sign_ed25519_pk_to_curve25519().
+  // need to be changed
   //
   // Below is a stripped down version of ratcheting_session_bob_initialize()
   // for testing the exchange.
   //////////////////////////////////////////////////////////////////////
 
-  unsigned char sodiumPublicCurveIdentityKey[32];
-  r = crypto_sign_ed25519_pk_to_curve25519(sodiumPublicCurveIdentityKey, sodiumPublicIdentityKey); // Convert the key
-  assert(r == 0);
-
-  ec_public_key* sodiumPublicCurveIdentityKeyPtr = 0;
-  load_public_key(&sodiumPublicCurveIdentityKeyPtr, sodiumPublicCurveIdentityKey);
+  ec_public_key* sodiumPublicSignedPreKeyPtr = 0;
+  load_public_key(&sodiumPublicSignedPreKeyPtr, sodiumPublicSignedPreKey);
 
   ec_public_key* sodiumPublicEphemeralKeyPtr = 0;
   load_public_key(&sodiumPublicEphemeralKeyPtr, sodiumPublicEphemeralKey);
@@ -148,32 +126,24 @@ int main(int argc, char* argv[]) {
   ec_private_key* signalPrivateOTPreKeyPtr = 0;
   load_private_key(&signalPrivateOTPreKeyPtr, signalPrivateOTPreKey);
 
-  ec_private_key* signalPrivateCurveIdentityKeyPtr = 0;
-  load_private_key(&signalPrivateCurveIdentityKeyPtr, signalPrivateCurveIdentityKey);
-
-  unsigned char km[32*5];
-  memset(km, 0xFF, 32);
+  unsigned char km[32*3];
 
   unsigned char* agreement;
-  r = curve_calculate_agreement(&agreement, sodiumPublicCurveIdentityKeyPtr, signalPrivateSignedPreKeyPtr);
+  r = curve_calculate_agreement(&agreement, sodiumPublicSignedPreKeyPtr, signalPrivateOTPreKeyPtr);
   assert(r >= 0);
-  memcpy(km + 32, agreement, 32);
-
-  r = curve_calculate_agreement(&agreement, sodiumPublicEphemeralKeyPtr, signalPrivateCurveIdentityKeyPtr);
-  assert(r == 32);
-  memcpy(km + 32 + 32, agreement, 32);
+  memcpy(km, agreement, 32);
 
   r = curve_calculate_agreement(&agreement, sodiumPublicEphemeralKeyPtr, signalPrivateSignedPreKeyPtr);
   assert(r == 32);
-  memcpy(km + 32 + 64, agreement, 32);
+  memcpy(km + 32, agreement, 32);
 
   r = curve_calculate_agreement(&agreement, sodiumPublicEphemeralKeyPtr, signalPrivateOTPreKeyPtr);
   assert(r == 32);
-  memcpy(km + 32 + 96, agreement, 32);
+  memcpy(km + 64, agreement, 32);
 
   ratchet_root_key* root_key;
   ratchet_chain_key* chain_key;
-  r = ratcheting_session_calculate_derived_keys(&root_key, &chain_key, km, 32*5, context);
+  r = ratcheting_session_calculate_derived_keys(&root_key, &chain_key, km, 32*3, context);
   assert(r == 0);
 
   signal_buffer* bytes;
