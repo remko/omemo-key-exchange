@@ -77,9 +77,11 @@ int main(int argc, char* argv[]) {
   // This can happen outside of libsignal when publishing the device
   // bundle.
   //////////////////////////////////////////////////////////////////////
-  unsigned char signalPublicIdentityKey_[32];
-  convert_curve_to_ed_pk(signalPublicIdentityKey_, signalPrivateCurveIdentityKey);
-  assert(memcmp(signalPublicIdentityKey, signalPublicIdentityKey_, 32) == 0);
+  {
+    unsigned char signalPublicIdentityKey_[32];
+    convert_curve_to_ed_pk(signalPublicIdentityKey_, signalPrivateCurveIdentityKey);
+    assert(memcmp(signalPublicIdentityKey, signalPublicIdentityKey_, 32) == 0);
+  }
 
 
   //////////////////////////////////////////////////////////////////////
@@ -96,28 +98,9 @@ int main(int argc, char* argv[]) {
     assert(r == 0);
     assert(memcmp(signalPublicSignedPreKeySignature_, signalPublicSignedPreKeySignature, 64) == 0);
 
-    // Consistency checks
     r = xed25519_verify(signalPublicSignedPreKeySignature_, signalPublicCurveIdentityKey, signalPublicSignedPreKey, 32);
     assert(r == 0);
-    unsigned char signalPublicCurveIdentityKey_[32];
-    r = crypto_sign_ed25519_pk_to_curve25519(signalPublicCurveIdentityKey_, signalPublicIdentityKey);
-    assert(r == 0);
-    r = xed25519_verify(signalPublicSignedPreKeySignature_, signalPublicCurveIdentityKey_, signalPublicSignedPreKey, 32);
-    assert(r == 0);
   }
-
-  //////////////////////////////////////////////////////////////////////
-  // Convert the identity key
-  //
-  // This can happen outside of libsignal, when fetching the bundle
-  //////////////////////////////////////////////////////////////////////
-
-  unsigned char sodiumPublicCurveIdentityKey[32];
-  r = crypto_sign_ed25519_pk_to_curve25519(sodiumPublicCurveIdentityKey, sodiumPublicIdentityKey); // Convert the key
-  assert(r == 0);
-
-  ec_public_key* sodiumPublicCurveIdentityKeyPtr = 0;
-  load_public_key(&sodiumPublicCurveIdentityKeyPtr, sodiumPublicCurveIdentityKey);
 
 
   //////////////////////////////////////////////////////////////////////
@@ -132,13 +115,10 @@ int main(int argc, char* argv[]) {
     unsigned char m[64 + 32];
     memcpy(sm, sodiumPublicSignedPreKeySignature, 64);
     memcpy(sm + 64, sodiumPublicSignedPreKey, 32);
-    /* r = crypto_sign_open_modified(m, sm, sizeof(sm), sodiumPublicIdentityKey); */
-    int r = curve_verify_signature(
-      sodiumPublicCurveIdentityKeyPtr,
-      sodiumPublicSignedPreKey, 32,
-      sodiumPublicSignedPreKeySignature, 64);
-    assert(r > 0);
+    r = crypto_sign_open_modified(m, sm, sizeof(sm), sodiumPublicIdentityKey);
+    assert(r == 0);
   }
+
 
   //////////////////////////////////////////////////////////////////////
   // (Modified) X3DH Key exchange.
@@ -152,6 +132,12 @@ int main(int argc, char* argv[]) {
   // for testing the exchange.
   //////////////////////////////////////////////////////////////////////
 
+  unsigned char sodiumPublicCurveIdentityKey[32];
+  r = crypto_sign_ed25519_pk_to_curve25519(sodiumPublicCurveIdentityKey, sodiumPublicIdentityKey); // Convert the key
+  assert(r == 0);
+
+  ec_public_key* sodiumPublicCurveIdentityKeyPtr = 0;
+  load_public_key(&sodiumPublicCurveIdentityKeyPtr, sodiumPublicCurveIdentityKey);
 
   ec_public_key* sodiumPublicEphemeralKeyPtr = 0;
   load_public_key(&sodiumPublicEphemeralKeyPtr, sodiumPublicEphemeralKey);
